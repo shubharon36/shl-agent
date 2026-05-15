@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: shl-assessment-chatbot
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    envVars:
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: GROQ_API_KEY
+        sync: false
+      - key: PORT
+        value: 8000
+    healthCheckPath: /health
