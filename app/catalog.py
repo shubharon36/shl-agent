@@ -1,13 +1,13 @@
 """
 Catalog loading, indexing, and semantic search over the SHL assessment catalog.
-Uses sentence-transformers for embeddings and FAISS for vector search.
+Uses fastembed for embeddings (low memory) and FAISS for vector search.
 """
 
 import json
 import os
 import numpy as np
 import faiss
-from sentence_transformers import SentenceTransformer
+from fastembed import TextEmbedding
 from typing import List, Dict, Any, Optional
 
 
@@ -35,7 +35,7 @@ class AssessmentCatalog:
 
         self.assessments: List[Dict[str, Any]] = []
         self.index: Optional[faiss.IndexFlatIP] = None
-        self.embedder: Optional[SentenceTransformer] = None
+        self.embedder: Optional[TextEmbedding] = None
         self._loaded = False
 
         self._load_catalog(dataset_path)
@@ -83,11 +83,13 @@ class AssessmentCatalog:
     def _build_index(self):
         """Build FAISS index from assessment search texts."""
         print("Building FAISS index...")
-        self.embedder = SentenceTransformer("all-MiniLM-L6-v2")
+        self.embedder = TextEmbedding("sentence-transformers/all-MiniLM-L6-v2")
 
         texts = [a["search_text"] for a in self.assessments]
-        embeddings = self.embedder.encode(texts, show_progress_bar=False, normalize_embeddings=True)
+        embeddings = list(self.embedder.embed(texts))
+        # Normalize embeddings for cosine similarity
         embeddings = np.array(embeddings, dtype=np.float32)
+        faiss.normalize_L2(embeddings)
 
         # Use inner-product (cosine similarity with normalized vectors)
         dim = embeddings.shape[1]
@@ -102,8 +104,9 @@ class AssessmentCatalog:
         if not self._loaded:
             return []
 
-        query_vec = self.embedder.encode([query], normalize_embeddings=True)
+        query_vec = list(self.embedder.embed([query]))
         query_vec = np.array(query_vec, dtype=np.float32)
+        faiss.normalize_L2(query_vec)
 
         scores, indices = self.index.search(query_vec, top_k)
 
